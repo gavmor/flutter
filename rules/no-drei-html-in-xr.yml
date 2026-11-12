@@ -1,0 +1,39 @@
+id: no-drei-html-in-xr
+language: Tsx
+severity: error
+message: Do not use drei Html in XR; render world-space text or meshes instead.
+note: Named Html imports (including aliases), direct Html JSX, and Html JSX on a directly imported drei namespace are guarded. DOM html remains allowed; indirect aliases require review.
+files:
+  - src/**/*.ts
+  - src/**/*.tsx
+rule:
+  any:
+    - kind: import_specifier
+      has:
+        field: name
+        regex: '^(Html|["\x27]Html["\x27])$'
+      inside:
+        kind: import_statement
+        has:
+          field: source
+          regex: "^['\"]@react-three/drei['\"]$"
+        stopBy: end
+    - any:
+        - kind: jsx_self_closing_element
+        - kind: jsx_opening_element
+      has:
+        field: name
+        kind: identifier
+        regex: '^Html$'
+    - all:
+        - any:
+            - kind: jsx_self_closing_element
+            - kind: jsx_opening_element
+        - has:
+            field: name
+            pattern: $NAMESPACE.Html
+        - inside:
+            kind: program
+            has:
+              pattern: import * as $NAMESPACE from '@react-three/drei'
+            stopBy: end

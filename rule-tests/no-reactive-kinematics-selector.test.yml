@@ -1,0 +1,69 @@
+id: no-reactive-kinematics-selector
+valid:
+  - useButterflyStore(state => state.notes)
+  - useButterflyStore(state => state.workerReady)
+  - useButterflyStore((state) => { return state.roomStatus })
+  - useButterflyStore((state) => state.notes[id])
+  - useButterflyStore(({ notes }) => notes)
+  - useButterflyStore(state => state.kinematicsVersion)
+  - useButterflyStore(state => state.notes.kinematics)
+  - useButterflyStore(state => other.kinematics)
+  - useButterflyStore((state) => { return other.kinematics.get(id) })
+  - |
+    useButterflyStore(state => ({ kinematicsLabel: state.workerMessage }))
+  - useButterflyStore.getState().kinematics
+  - useFrame(() => useButterflyStore.getState().kinematics.get(id).currentPos.copy(position))
+  - anotherStore(state => state.kinematics)
+  - useButterflyStore.subscribe(state => state.kinematics)
+  - useButterflyStore(metadataSelector, state => state.kinematics)
+  # Reading a value without returning it is not selecting that value.
+  - |
+    useButterflyStore(state => {
+      inspect(state.kinematics)
+      return state.notes
+    })
+  # A return belonging to a nested helper is not the selector's return.
+  - |
+    useButterflyStore(state => {
+      const readLater = () => { return state.kinematics }
+      register(readLater)
+      return state.notes
+    })
+  - useButterflyStore(state => () => state.kinematics)
+  - |
+    function Scene() {
+      const notes = useButterflyStore(state => state.notes)
+      return <group userData={notes} />
+    }
+invalid:
+  - useButterflyStore(state => state.kinematics)
+  - useButterflyStore((state) => state.kinematics)
+  - useButterflyStore(snapshot => snapshot.kinematics)
+  - useButterflyStore((state) => (state.kinematics))
+  - useButterflyStore((state) => { return state.kinematics })
+  - useButterflyStore(state => { if (ready) return state.kinematics; return null })
+  - useButterflyStore(function (state) { return state.kinematics })
+  - useButterflyStore(function selectKinematics(state) { return state.kinematics })
+  - |
+    useButterflyStore((state: ButterflyStore) => state.kinematics)
+  - |
+    useButterflyStore((state: ButterflyStore) => { return state.kinematics })
+  - |
+    useButterflyStore(function (state: ButterflyStore) { return state.kinematics })
+  - useButterflyStore(state => state.kinematics.get(id))
+  - useButterflyStore(state => state.kinematics.get(id).currentPos)
+  - useButterflyStore(state => state.kinematics.size)
+  - useButterflyStore(state => state.kinematics[id])
+  - useButterflyStore(state => state.kinematics?.get(id)?.velocity)
+  - useButterflyStore(state => state['kinematics'])
+  - useButterflyStore(state => state["kinematics"].get(id))
+  - useButterflyStore((state) => { return state['kinematics'].size })
+  - |
+    useButterflyStore(state => ({ positions: state.kinematics }))
+  - useButterflyStore(state => [state.kinematics.get(id)])
+  - useButterflyStore(state => state.kinematics.size > 0)
+  - |
+    function Scene() {
+      const position = useButterflyStore(state => state.kinematics.get(id).currentPos)
+      return <mesh position={position} />
+    }

@@ -1,0 +1,52 @@
+glob_matcher: doublestar
+
+pre-commit:
+  parallel: true
+  commands:
+    typescript:
+      glob: "{src/**,tests/**,tsconfig*.json,package.json,package-lock.json}"
+      run: npm run typecheck
+    biome:
+      glob: "**/*.{js,ts,cjs,mjs,cts,mts,jsx,tsx,json,jsonc,css}"
+      exclude: "package-lock.json"
+      run: npm run lint -- --no-errors-on-unmatched --files-ignore-unknown=true {staged_files}
+    jscpd:
+      glob: "{src/**,package.json,package-lock.json}"
+      run: npm run duplicates
+    architecture:
+      glob: "src/**/*.{ts,tsx}"
+      run: npm exec --no -- ast-grep scan {staged_files}
+      fail_text: "WebXR architecture violations detected; no files were modified."
+    architecture-rules:
+      glob: "{sgconfig.yml,rules/**/*.{yml,yaml},rule-tests/**/*.{yml,yaml},package.json,package-lock.json}"
+      run: npm run test:ast && npm run lint:ast
+      fail_text: "Architecture rule tests or the source scan failed."
+    secrets:
+      run: gitleaks git --pre-commit --staged --redact --verbose --no-banner
+    spelling:
+      glob: "**/*.{js,ts,cjs,mjs,cts,mts,jsx,tsx,md,mdx,json,jsonc,yml,yaml,css,html}"
+      exclude: "package-lock.json"
+      run: npm run lint:spelling -- {staged_files}
+    staged-files:
+      run: node scripts/check-staged.mjs
+    lockfile-sync:
+      glob: "{package.json,package-lock.json}"
+      run: node scripts/check-lockfile.mjs
+
+commit-msg:
+  commands:
+    conventional-commits:
+      run: npm exec --no -- commitlint --edit "{1}"
+
+pre-push:
+  parallel: true
+  commands:
+    architecture:
+      run: npm run test:ast && npm run lint:ast
+    knip:
+      run: npm run lint:unused
+    tests:
+      run: npm run test:core
+    dependency-audit:
+      glob: "{package.json,package-lock.json}"
+      run: npm run audit:dependencies

@@ -1,0 +1,25 @@
+id: no-drei-html-in-xr
+valid:
+  - import { Text, Billboard } from '@react-three/drei'
+  - import { Html as Overlay } from './dom-overlay'
+  - const view = <html><body>DOM document</body></html>
+  - const view = <html lang="en" />
+  - const view = <Text>World-space text</Text>
+  - const Htmlish = () => <Htmlish />
+  - const view = <UI.Html />
+  - import * as UI from './dom-overlay'; const view = <UI.Html>DOM</UI.Html>
+  - |
+    const view = <mesh userData={{ label: 'Html' }} />
+  - const Html = 'a string, not JSX'
+invalid:
+  - import { Html } from '@react-three/drei'
+  - import { Html as Overlay } from '@react-three/drei'
+  - import { Text, Html as DomOverlay } from '@react-three/drei'
+  - import { type Html } from '@react-three/drei'
+  - const view = <Html />
+  - const view = <Html center distanceFactor={10} />
+  - const view = <Html><div>Overlay</div></Html>
+  - const Overlay = () => <Html />
+  - const Overlay = () => { return <Html>Overlay</Html> }
+  - import * as Drei from '@react-three/drei'; const view = <Drei.Html />
+  - import * as Helpers from '@react-three/drei'; const view = <Helpers.Html>Overlay</Helpers.Html>

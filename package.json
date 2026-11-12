@@ -1,0 +1,49 @@
+{
+  "name": "flutter",
+  "type": "module",
+  "dependencies": {
+    "@huggingface/transformers": "^3.8.1",
+    "@react-three/drei": "^10.0.0",
+    "@react-three/fiber": "^9.0.0",
+    "@react-three/handle": "^6.6.16",
+    "@react-three/uikit": "^0.8.15",
+    "@react-three/xr": "^6.6.16",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@types/three": "~0.175.0",
+    "@vitejs/plugin-basic-ssl": "^2.0.0",
+    "@vitejs/plugin-react": "^4.4.1",
+    "ml-matrix": "^6.15.1",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "three": "~0.175.0",
+    "vite": "^6.3.4",
+    "zustand": "^5.1.0"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "npm run test:ast && npm run lint:ast && vite build",
+    "test:core": "tsx --test tests/core.test.ts",
+    "prepare": "lefthook install",
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check --error-on-warnings",
+    "duplicates": "jscpd src --threshold 0",
+    "lint:ast": "ast-grep scan src",
+    "test:ast": "ast-grep test --skip-snapshot-tests",
+    "lint:spelling": "cspell lint --no-progress --no-must-find-files",
+    "lint:unused": "knip",
+    "audit:dependencies": "npm audit --omit=dev"
+  },
+  "devDependencies": {
+    "@ast-grep/cli": "^0.51.2",
+    "@biomejs/biome": "^2.6.7",
+    "@commitlint/cli": "^21.2.4",
+    "@commitlint/config-conventional": "^21.2.4",
+    "cspell": "^10.4.1",
+    "jscpd": "^5.4.3",
+    "knip": "^6.45.1",
+    "lefthook": "^2.2.2",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
+  }
+}

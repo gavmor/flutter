@@ -1,0 +1,59 @@
+id: no-three-alloc-in-useframe
+language: Tsx
+severity: error
+message: Reuse preallocated THREE math objects in useFrame; copy() into an existing target instead of clone().
+note: >-
+  This syntactic guard checks known THREE math constructor names (THREE-qualified
+  or unqualified named imports) and any .clone() call in inline useFrame callback
+  bodies, including nested functions. It does not resolve renamed imports,
+  shadowed names, callback references, or allocations hidden in callees. clone()
+  is intentionally receiver-agnostic. Preallocate outside the frame callback and
+  mutate a suitable existing target; no automatic fix can safely choose one.
+files:
+  - src/**/*.ts
+  - src/**/*.tsx
+utils:
+  math-class-name:
+    regex: '^(Vector[234]|Matrix[34]|Quaternion|Euler|Color|Box[23]|Sphere|Plane|Ray|Frustum|Spherical|Cylindrical|Triangle|Line3|SphericalHarmonics3)$'
+  inline-frame-callback:
+    any:
+      - kind: arrow_function
+      - kind: function_expression
+    nthChild: 1
+    inside:
+      kind: arguments
+      inside:
+        kind: call_expression
+        has:
+          field: function
+          kind: identifier
+          regex: '^useFrame$'
+rule:
+  all:
+    - any:
+        - kind: new_expression
+          has:
+            field: constructor
+            any:
+              - kind: identifier
+                matches: math-class-name
+              - kind: member_expression
+                all:
+                  - has:
+                      field: object
+                      kind: identifier
+                      regex: '^THREE$'
+                  - has:
+                      field: property
+                      matches: math-class-name
+        - kind: call_expression
+          has:
+            field: function
+            kind: member_expression
+            has:
+              field: property
+              regex: '^clone$'
+    - inside:
+        field: body
+        matches: inline-frame-callback
+        stopBy: end

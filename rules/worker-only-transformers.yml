@@ -1,0 +1,40 @@
+id: worker-only-transformers
+language: Tsx
+severity: error
+message: Load Hugging Face Transformers only in src/worker modules, never on the main thread.
+note: Static imports, re-exports, import(), and require() of the package and its subpaths are guarded. Computed module names and wrapper loaders require review.
+files:
+  - src/**/*.ts
+  - src/**/*.tsx
+ignores:
+  - src/worker/**
+rule:
+  any:
+    - kind: string
+      regex: "^['\"]@huggingface/transformers(/[^'\"]*)?['\"]$"
+      any:
+        - inside:
+            any:
+              - kind: import_statement
+              - kind: export_statement
+            field: source
+        - inside:
+            kind: import_require_clause
+        - inside:
+            kind: arguments
+            inside:
+              kind: call_expression
+              has:
+                field: function
+                regex: '^(import|require)$'
+          nthChild: 1
+    - kind: template_string
+      regex: '^`@huggingface/transformers(/[^`$]*)?`$'
+      nthChild: 1
+      inside:
+        kind: arguments
+        inside:
+          kind: call_expression
+          has:
+            field: function
+            regex: '^(import|require)$'

@@ -1,0 +1,174 @@
+id: require-worker-transferable-audio
+language: Tsx
+severity: error
+message: Transfer the PROCESS_AUDIO payload's audio.buffer instead of cloning audio to the worker.
+note: >-
+  Checks postMessage and the repository's send wrapper, inline PROCESS_AUDIO objects,
+  and identifiers initialized to such objects in a preceding declaration in the same block.
+  Recognizable array literals must include audio.buffer (TypeScript assertions are allowed).
+  Unknown message/transfer variables, aliases, mutations, spread lists, and interprocedural
+  dataflow require review; this syntactic guard cannot prove buffer ownership or transfer safety.
+  No autofix can safely invent a buffer or change ownership.
+files:
+  - src/**/*.ts
+  - src/**/*.tsx
+utils:
+  audio-object:
+    kind: object
+    has:
+      kind: pair
+      all:
+        - has:
+            field: key
+            regex: "^(type|['\"]type['\"])$"
+        - has:
+            field: value
+            regex: "^['\"]PROCESS_AUDIO['\"]$"
+  audio-payload:
+    all:
+      - matches: audio-object
+      - has:
+          pattern:
+            context: '({ audio: $AUDIO })'
+            selector: pair
+  known-message:
+    any:
+      - has:
+          field: arguments
+          has:
+            nthChild: 1
+            matches: audio-object
+      - all:
+          - has:
+              field: arguments
+              has:
+                nthChild: 1
+                kind: identifier
+                pattern: $MESSAGE
+          - inside:
+              kind: expression_statement
+              follows:
+                any:
+                  - kind: lexical_declaration
+                  - kind: variable_declaration
+                has:
+                  kind: variable_declarator
+                  all:
+                    - has:
+                        field: name
+                        pattern: $MESSAGE
+                    - has:
+                        field: value
+                        matches: audio-object
+                stopBy: end
+  known-payload:
+    any:
+      - has:
+          field: arguments
+          has:
+            nthChild: 1
+            matches: audio-payload
+      - all:
+          - has:
+              field: arguments
+              has:
+                nthChild: 1
+                kind: identifier
+                pattern: $MESSAGE
+          - inside:
+              kind: expression_statement
+              follows:
+                any:
+                  - kind: lexical_declaration
+                  - kind: variable_declaration
+                has:
+                  kind: variable_declarator
+                  all:
+                    - has:
+                        field: name
+                        pattern: $MESSAGE
+                    - has:
+                        field: value
+                        matches: audio-payload
+                stopBy: end
+  empty-transfer:
+    any:
+      - pattern: '[]'
+      - regex: '^(undefined|null)$'
+  bad-transfer:
+    any:
+      - not:
+          has:
+            nthChild: 2
+      - has:
+          nthChild: 2
+          matches: empty-transfer
+      - has:
+          nthChild: 2
+          kind: object
+          any:
+            - not:
+                has:
+                  kind: pair
+                  has:
+                    field: key
+                    regex: "^(transfer|['\"]transfer['\"])$"
+            - has:
+                kind: pair
+                all:
+                  - has:
+                      field: key
+                      regex: "^(transfer|['\"]transfer['\"])$"
+                  - has:
+                      field: value
+                      matches: empty-transfer
+  missing-audio-buffer:
+    kind: array
+    all:
+      - not:
+          has:
+            kind: spread_element
+      - not:
+          has:
+            pattern: $AUDIO.buffer
+            stopBy: end
+  wrong-transfer:
+    any:
+      - has:
+          nthChild: 2
+          matches: missing-audio-buffer
+      - has:
+          nthChild: 2
+          kind: object
+          has:
+            kind: pair
+            all:
+              - has:
+                  field: key
+                  regex: "^(transfer|['\"]transfer['\"])$"
+              - has:
+                  field: value
+                  matches: missing-audio-buffer
+rule:
+  kind: call_expression
+  all:
+    - has:
+        field: function
+        any:
+          - kind: identifier
+            regex: '^(send|postMessage)$'
+          - kind: member_expression
+            has:
+              field: property
+              regex: '^postMessage$'
+    - any:
+        - all:
+            - matches: known-message
+            - has:
+                field: arguments
+                matches: bad-transfer
+        - all:
+            - matches: known-payload
+            - has:
+                field: arguments
+                matches: wrong-transfer

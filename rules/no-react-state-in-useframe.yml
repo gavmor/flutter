@@ -1,0 +1,60 @@
+id: no-react-state-in-useframe
+language: Tsx
+severity: error
+message: Keep React setters and useButterflyStore.setState out of useFrame callbacks.
+note: >-
+  Direct setX(...) calls use the set + uppercase naming heuristic, not React type
+  information: unrelated helpers with that spelling can be reported, while
+  renamed setters and state writes hidden in callees are not traced. Object
+  methods such as vector.setX(...) are excluded; useButterflyStore.setState is
+  explicitly included. Only inline useFrame callback bodies are checked,
+  including nested functions. Move orchestration to event/effect boundaries;
+  changing hook semantics automatically would be unsafe.
+files:
+  - src/**/*.ts
+  - src/**/*.tsx
+utils:
+  inline-frame-callback:
+    any:
+      - kind: arrow_function
+      - kind: function_expression
+    nthChild: 1
+    inside:
+      kind: arguments
+      inside:
+        kind: call_expression
+        has:
+          field: function
+          kind: identifier
+          regex: '^useFrame$'
+rule:
+  kind: call_expression
+  all:
+    - has:
+        field: function
+        any:
+          - kind: identifier
+            regex: '^set[A-Z][A-Za-z0-9_$]*$'
+          - kind: member_expression
+            all:
+              - has:
+                  field: object
+                  kind: identifier
+                  regex: '^useButterflyStore$'
+              - has:
+                  field: property
+                  regex: '^setState$'
+          - kind: subscript_expression
+            all:
+              - has:
+                  field: object
+                  kind: identifier
+                  regex: '^useButterflyStore$'
+              - has:
+                  field: index
+                  kind: string
+                  regex: '^["'']setState["'']$'
+    - inside:
+        field: body
+        matches: inline-frame-callback
+        stopBy: end

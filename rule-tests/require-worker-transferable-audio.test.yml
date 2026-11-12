@@ -1,0 +1,82 @@
+id: require-worker-transferable-audio
+valid:
+  - |
+    worker.postMessage({ type: 'PROCESS_AUDIO', audio: pcm }, [pcm.buffer])
+  - |
+    send({ type: 'PROCESS_AUDIO', id, audio: pcm16kHz, sampleRate: 16000, origin: [origin.x, origin.y, origin.z] }, [pcm16kHz.buffer as ArrayBuffer])
+  - |
+    worker.postMessage({ audio: samples.current, type: 'PROCESS_AUDIO' }, [other.buffer, samples.current.buffer as ArrayBuffer])
+  - |
+    worker.postMessage({ type: 'PROCESS_AUDIO', audio: pcm }, { transfer: [pcm.buffer] })
+  - |
+    const message: WorkerRequest = { type: 'PROCESS_AUDIO', audio: pcm }
+    worker.postMessage(message, [pcm.buffer])
+  - |
+    const message = { type: 'PROCESS_TEXT', text: 'hello' }
+    worker.postMessage(message)
+  - |
+    worker.postMessage({ type: 'PROCESS_TEXT', text: 'hello' })
+  - |
+    worker.postMessage({ type: 'STATUS', nested: { type: 'PROCESS_AUDIO', audio: pcm } })
+  - |
+    worker.postMessage({ type: 'PROCESS_AUDIO', audio: pcm }, transfers)
+  - |
+    worker.postMessage({ type: 'PROCESS_AUDIO', audio: pcm }, { transfer: transfers })
+  - |
+    worker.postMessage({ type: 'PROCESS_AUDIO', audio: pcm }, [...transfers])
+  - |
+    worker.postMessage(message, transfer)
+  - |
+    save({ type: 'PROCESS_AUDIO', audio: pcm })
+  - |
+    function send(message: WorkerRequest, transfer: Transferable[] = []) { worker.postMessage(message, transfer) }
+  - |
+    const handle = () => worker.postMessage({ type: 'PROCESS_AUDIO', audio: pcm }, [pcm.buffer])
+  - |
+    const handle = () => { worker.postMessage({ type: 'PROCESS_AUDIO', audio: pcm }, [pcm.buffer]) }
+invalid:
+  - |
+    worker.postMessage({ type: 'PROCESS_AUDIO', audio: pcm })
+  - |
+    worker.postMessage({ type: 'PROCESS_AUDIO', audio: pcm }, [])
+  - |
+    send({ type: 'PROCESS_AUDIO', id, audio: pcm16kHz, sampleRate: 16000 })
+  - |
+    send({ type: 'PROCESS_AUDIO', audio: pcm16kHz }, [])
+  - |
+    postMessage({ type: 'PROCESS_AUDIO', audio: pcm }, [])
+  - |
+    worker.postMessage({ type: 'PROCESS_AUDIO', audio: pcm }, [unrelated.buffer])
+  - |
+    worker.postMessage({ type: 'PROCESS_AUDIO', audio: pcm }, [pcm])
+  - |
+    worker.postMessage({ type: 'PROCESS_AUDIO', audio: samples.current }, [other.buffer as ArrayBuffer])
+  - |
+    worker.postMessage({ type: 'PROCESS_AUDIO', audio: pcm }, undefined)
+  - |
+    worker.postMessage({ type: 'PROCESS_AUDIO', audio: pcm }, {})
+  - |
+    worker.postMessage({ type: 'PROCESS_AUDIO', audio: pcm }, { transfer: [] })
+  - |
+    worker.postMessage({ type: 'PROCESS_AUDIO', audio: pcm }, { transfer: [other.buffer] })
+  - |
+    worker.postMessage({ 'type': 'PROCESS_AUDIO', audio: pcm }, [])
+  - |
+    const message: WorkerRequest = { type: 'PROCESS_AUDIO', audio: pcm }
+    worker.postMessage(message)
+  - |
+    const message = { type: 'PROCESS_AUDIO', audio: pcm }
+    doSomething()
+    worker.postMessage(message, [])
+  - |
+    const message = { type: 'PROCESS_AUDIO', audio: pcm }
+    worker.postMessage(message, [other.buffer])
+  - |
+    const handle = () => worker.postMessage({ type: 'PROCESS_AUDIO', audio: pcm })
+  - |
+    const handle = () => { worker.postMessage({ type: 'PROCESS_AUDIO', audio: pcm }, []) }
+  - |
+    function submit() {
+      const message = { type: 'PROCESS_AUDIO', audio: pcm }
+      worker.postMessage(message, [])
+    }

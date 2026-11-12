@@ -1,0 +1,99 @@
+id: no-reactive-kinematics-selector
+language: Tsx
+severity: error
+message: Do not subscribe React to transient kinematics through useButterflyStore selectors.
+note: >-
+  Select orchestration metadata reactively; read mutable kinematics imperatively
+  where needed. This guard links a simple selector parameter to a returned
+  .kinematics or ['kinematics'] access, including nested members and computed
+  expressions, in concise arrow or block-return selectors. It does not resolve
+  aliases, destructured parameters, referenced selectors, or nested helper
+  callbacks. There is no automatic getState replacement because it would change
+  subscription and hook semantics.
+files:
+  - src/**/*.ts
+  - src/**/*.tsx
+utils:
+  function-boundary:
+    any:
+      - kind: arrow_function
+      - kind: function_expression
+      - kind: function_declaration
+      - kind: generator_function
+      - kind: generator_function_declaration
+      - kind: method_definition
+  inline-store-selector:
+    all:
+      - any:
+          - kind: arrow_function
+          - kind: function_expression
+      - nthChild: 1
+      - inside:
+          kind: arguments
+          inside:
+            kind: call_expression
+            has:
+              field: function
+              kind: identifier
+              regex: '^useButterflyStore$'
+      - any:
+          - has:
+              field: parameter
+              kind: identifier
+              pattern: $STATE
+          - has:
+              field: parameters
+              kind: formal_parameters
+              has:
+                kind: required_parameter
+                nthChild: 1
+                has:
+                  field: pattern
+                  kind: identifier
+                  pattern: $STATE
+rule:
+  all:
+    - any:
+        - kind: member_expression
+          all:
+            - has:
+                field: object
+                kind: identifier
+                pattern: $STATE
+            - has:
+                field: property
+                regex: '^kinematics$'
+        - kind: subscript_expression
+          all:
+            - has:
+                field: object
+                kind: identifier
+                pattern: $STATE
+            - has:
+                field: index
+                kind: string
+                regex: '^["'']kinematics["'']$'
+    - any:
+        - inside:
+            field: body
+            all:
+              - matches: inline-store-selector
+              - kind: arrow_function
+              - has:
+                  field: body
+                  not:
+                    kind: statement_block
+            stopBy:
+              matches: function-boundary
+        - inside:
+            kind: return_statement
+            inside:
+              field: body
+              matches: inline-store-selector
+              stopBy:
+                matches: function-boundary
+            stopBy:
+              matches: function-boundary
+constraints:
+  STATE:
+    kind: identifier

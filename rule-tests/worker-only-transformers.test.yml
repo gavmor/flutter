@@ -1,0 +1,28 @@
+id: worker-only-transformers
+# Path exemptions are scan-level behavior: integration must check src/worker/*.ts
+# and src/worker/**/*.tsx versus src/components/*.tsx and src/*.ts.
+valid:
+  - import { Vector3 } from 'three'
+  - import { pipeline } from '@huggingface/transformers-extra'
+  - export { pipeline } from '@huggingface/transformers-extra/subpath'
+  - const name = '@huggingface/transformers'
+  - const value = load('@huggingface/transformers')
+  - const value = require('safe', '@huggingface/transformers')
+  - const view = <span title="@huggingface/transformers" />
+  - const value = import(packageName)
+invalid:
+  - import { pipeline } from '@huggingface/transformers'
+  - import type { Pipeline } from '@huggingface/transformers'
+  - import '@huggingface/transformers'
+  - import { env } from '@huggingface/transformers/src/env'
+  - export { pipeline } from '@huggingface/transformers'
+  - export * from '@huggingface/transformers/subpath'
+  - export type { Pipeline } from '@huggingface/transformers'
+  - const library = import('@huggingface/transformers')
+  - const library = import('@huggingface/transformers/subpath')
+  - const library = require('@huggingface/transformers')
+  - const library = require('@huggingface/transformers/subpath')
+  - import transformers = require('@huggingface/transformers')
+  - const library = import(`@huggingface/transformers`)
+  - const library = require(`@huggingface/transformers/subpath`)
+  - const Component = () => { import('@huggingface/transformers'); return <mesh /> }

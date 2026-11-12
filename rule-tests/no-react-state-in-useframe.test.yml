@@ -1,0 +1,64 @@
+id: no-react-state-in-useframe
+valid:
+  - |
+    setCount(1)
+    useFrame(() => mesh.rotation.y += 0.01)
+  - useEffect(() => setReady(true), [])
+  - useOtherFrame(() => setCount(1))
+  - |
+    useFrame(() => {
+      vector.setX(1)
+      object.setFoo(2)
+      material.setValues({ opacity: 0.5 })
+      matrix.setPosition(vector)
+    })
+  - |
+    useFrame(() => otherStore.setState({ count: 1 }))
+  - useFrame(() => object['setFoo'](1))
+  - useFrame(() => useButterflyStore.getState().setRecordingRms(id, rms))
+  - useFrame(() => useButterflyStore.getState().kinematics.get(id).currentPos.copy(position))
+  - useFrame(() => resetCount())
+  - useFrame(() => offsetPosition())
+  - useFrame(() => setposition(position))
+  # Calls in non-callback arguments do not run on every frame.
+  - useFrame(setCount(1))
+  - useFrame(frameCallback, setPriority(1))
+  - |
+    useFrame(() => update(), useButterflyStore.setState({ ready: true }))
+  - useFrame(makeHandler(() => setCount(1)))
+  - |
+    function Scene() {
+      useFrame(() => vector.setXYZ(1, 2, 3))
+      return <mesh onClick={() => setCount(1)} />
+    }
+invalid:
+  - useFrame(() => setCount(1))
+  - useFrame(() => { setPosition(position) })
+  - useFrame(state => setElapsed(state.clock.elapsedTime))
+  - useFrame((state, delta) => setCount(previous => previous + delta))
+  - useFrame(() => { if (ready) setReady(false) })
+  - useFrame(() => entities.forEach(entity => setSelected(entity.id)))
+  - useFrame(function animate() { setCount(1) })
+  - useFrame(function () { setReady(true) })
+  - useFrame(() => setX(1))
+  - useFrame(() => setCount$(1))
+  - |
+    useFrame(() => useButterflyStore.setState({ ready: true }))
+  - |
+    useFrame(() => { useButterflyStore.setState(state => ({ notes: state.notes })) })
+  - |
+    useFrame(function animate() { useButterflyStore.setState({ error: null }) })
+  - |
+    useFrame(() => useButterflyStore . setState({ ready: true }))
+  - |
+    useFrame(() => useButterflyStore?.setState({ ready: true }))
+  - |
+    useFrame(() => useButterflyStore['setState']({ ready: true }))
+  - |
+    useFrame(() => useButterflyStore["setState"]({ ready: true }))
+  - |
+    function Scene() {
+      const [count, setCount] = useState(0)
+      useFrame((_state, delta) => { setCount(count + delta) })
+      return <mesh />
+    }

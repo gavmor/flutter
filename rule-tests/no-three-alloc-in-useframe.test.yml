@@ -1,0 +1,81 @@
+id: no-three-alloc-in-useframe
+valid:
+  - |
+    const scratch = new THREE.Vector3()
+    useFrame(() => scratch.set(1, 2, 3))
+  - |
+    import { Vector3, Quaternion } from 'three'
+    const position = useMemo(() => new Vector3(), [])
+    const rotation = useRef(new Quaternion())
+    useFrame(() => position.applyQuaternion(rotation.current))
+  - |
+    const copy = position.clone()
+    useFrame(() => scratch.copy(copy))
+  - |
+    useFrame(() => {
+      scratch.copy(position).addScaledVector(velocity, delta)
+      rotation.copy(targetRotation)
+      object.position.setX(scratch.x)
+    })
+  - useEffect(() => { const scratch = new THREE.Vector3() }, [])
+  - useOtherFrame(() => new THREE.Vector3())
+  - useFrame(() => new CustomVector3())
+  - useFrame(() => new application.Vector3())
+  - useFrame(() => position.cloneCounter())
+  # Hook arguments/factory inputs are evaluated at registration, not each frame.
+  - useFrame(makeHandler(new THREE.Vector3()))
+  - useFrame(makeHandler(() => new THREE.Vector3()))
+  - useFrame(() => update(), new THREE.Vector3())
+  - useFrame(frameCallback, position.clone())
+  - useFrame(() => update(), (() => new THREE.Vector3()))
+  - |
+    function Scene() {
+      const scratch = useMemo(() => new THREE.Vector3(), [])
+      useFrame(() => mesh.current.position.copy(scratch))
+      return <mesh />
+    }
+invalid:
+  - useFrame(() => new THREE.Vector3())
+  - useFrame(() => { const position = new THREE.Vector3() })
+  - |
+    import { Vector3 } from 'three'
+    useFrame(() => { const position = new Vector3(1, 2, 3) })
+  - |
+    import { Matrix4 } from 'three'
+    useFrame(() => new Matrix4())
+  - useFrame(() => new THREE.Vector2())
+  - useFrame(() => new Vector4())
+  - useFrame(() => new THREE.Matrix3())
+  - useFrame(() => new Quaternion())
+  - useFrame(() => new THREE.Euler())
+  - useFrame(() => new Color('red'))
+  - useFrame(() => new THREE.Box3())
+  - useFrame(() => new Sphere())
+  - useFrame(() => new THREE.Plane())
+  - useFrame(() => new Ray())
+  - useFrame(() => new THREE.Frustum())
+  - useFrame(() => new Spherical())
+  - useFrame(() => new THREE.Cylindrical())
+  - useFrame(() => new Triangle())
+  - useFrame(() => new THREE.Line3())
+  - useFrame(() => new SphericalHarmonics3())
+  - useFrame(() => position.clone())
+  - useFrame(() => { const copy = object.position.clone() })
+  - useFrame(() => position?.clone())
+  - |
+    useFrame((_state, delta) => {
+      if (delta > 0) {
+        for (const item of items) update(item.position.clone())
+      }
+    })
+  - useFrame(() => entities.forEach(entity => update(entity.currentPos.clone())))
+  - useFrame(function animate() { return new THREE.Quaternion() })
+  - useFrame(function () { return position.clone() })
+  - useFrame((state, delta) => update(new THREE.Vector3(), delta), -1)
+  - useFrame(() => new THREE . Vector3())
+  - useFrame(() => new THREE.Vector3)
+  - |
+    function Scene() {
+      useFrame(() => { mesh.current.position.copy(new THREE.Vector3()) })
+      return <mesh />
+    }

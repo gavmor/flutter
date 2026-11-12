@@ -1,0 +1,20 @@
+id: worker-no-ui-imports
+language: Tsx
+severity: error
+message: Keep worker modules independent of React and main-thread UI state/audio.
+files:
+  - src/worker/**/*.ts
+  - src/worker/**/*.tsx
+rule:
+  kind: string
+  regex: "^['\"](react(-dom)?(/|['\"])|@react-three/|zustand(/|['\"])|\\.\\.?/(.*/)?(components|audio|state)(/|['\"]))"
+  inside:
+    any:
+      - kind: import_statement
+      - kind: export_statement
+      - kind: arguments
+        inside:
+          kind: call_expression
+          has:
+            field: function
+            regex: '^(import|require)$'

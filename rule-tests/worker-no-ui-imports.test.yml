@@ -1,0 +1,10 @@
+id: worker-no-ui-imports
+valid:
+  - import { RoomCollider } from '../xr-systems/roomGeometry'
+  - export const label = 'react'
+  - const text = describe('zustand')
+invalid:
+  - import { create } from 'zustand'
+  - export { useState } from 'react'
+  - const load = () => import('../state/useButterflyStore')
+  - const ui = require('@react-three/uikit')
