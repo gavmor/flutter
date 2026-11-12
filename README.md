@@ -11,6 +11,8 @@ npm run dev
 
 Open the HTTPS Vite URL (or localhost). Microphone permission is requested before an XR session starts. The first XR action lazily loads Whisper and the mixedbread 384-dimensional text embedding model in a worker; model download and WebGPU availability determine startup time.
 
+The application uses Transformers.js 4.3.2 and UIKit 1.0.78. The worker keeps the WebGPU Whisper and normalized text-embedding pipeline APIs; UIKit panels use native containers with inherited pixel sizing and alpha colors instead of deprecated root wrappers and opacity properties. Patched transitive dependencies are resolved through these maintained releases, without dependency overrides.
+
 ## Privacy and data
 
 Recordings stay in the browser as compressed Blob URLs and worker memory. Audio is not uploaded by this app. Reloading or leaving the page disposes the worker, microphone stream, audio URLs, and spatial registry. Browser microphone permission, WebGPU support, and headset room-scanning permissions are controlled by the browser/device.

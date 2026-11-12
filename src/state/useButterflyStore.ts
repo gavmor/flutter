@@ -9,7 +9,7 @@ import type {
   WorkerResponse,
 } from '../protocol'
 
-export type ButterflyLifecycleState =
+type ButterflyLifecycleState =
   | 'RECORDING'
   | 'TRANSCRIBING'
   | 'TRANSIT'

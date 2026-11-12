@@ -2,11 +2,9 @@
   "name": "flutter",
   "type": "module",
   "dependencies": {
-    "@huggingface/transformers": "^3.8.1",
-    "@react-three/drei": "^10.0.0",
+    "@huggingface/transformers": "^4.3.2",
     "@react-three/fiber": "^9.0.0",
-    "@react-three/handle": "^6.6.16",
-    "@react-three/uikit": "^0.8.15",
+    "@react-three/uikit": "^1.0.78",
     "@react-three/xr": "^6.6.16",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",

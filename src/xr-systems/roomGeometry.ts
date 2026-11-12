@@ -2,7 +2,7 @@ import { Box3, Matrix4, Ray, Triangle, Vector3 } from 'three'
 import { OBB } from 'three/addons/math/OBB.js'
 import type { RoomGeometry, RoomSurfaceData, Vec3 } from '../protocol'
 
-export const BUTTERFLY_RADIUS = 0.075
+const BUTTERFLY_RADIUS = 0.075
 interface Surface {
   data: RoomSurfaceData
   triangles: Triangle[]

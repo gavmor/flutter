@@ -9,14 +9,14 @@ type ActiveRecording = {
 }
 type PendingRecording = { id: string; cancelled: boolean }
 
-export type RecorderStatus =
+type RecorderStatus =
   | 'idle'
   | 'warming'
   | 'ready'
   | 'recording'
   | 'processing'
   | 'error'
-export interface RecordingResult {
+interface RecordingResult {
   audioUrl: string
   pcm16kHz: Float32Array
 }

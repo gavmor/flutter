@@ -1,6 +1,6 @@
 export type Vec3 = [number, number, number]
 export type RoomStatus = 'unscanned' | 'partial' | 'scanned'
-export interface RoomBounds {
+interface RoomBounds {
   min: Vec3
   max: Vec3
 }

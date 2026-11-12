@@ -5,12 +5,7 @@ import {
   type FeatureExtractionPipeline,
   pipeline,
 } from '@huggingface/transformers'
-import type {
-  RoomGeometry,
-  Vec3,
-  WorkerRequest,
-  WorkerResponse,
-} from '../protocol'
+import type { Vec3, WorkerRequest, WorkerResponse } from '../protocol'
 import { RoomQuantizer } from './emeans'
 import { type EmbeddedNote, StabilizedDualPCA } from './spatialPCA'
 
@@ -204,5 +199,3 @@ scope.onmessage = (event: MessageEvent<WorkerRequest>) => {
       // Catch terminates this request only: future messages still run.
     })
 }
-
-export type { RoomGeometry }

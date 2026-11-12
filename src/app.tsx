@@ -1,5 +1,5 @@
 import { Canvas } from '@react-three/fiber'
-import { Container, Root, Text } from '@react-three/uikit'
+import { Container, Text } from '@react-three/uikit'
 import { createXRStore, useXR, XR } from '@react-three/xr'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import * as THREE from 'three'
@@ -467,51 +467,49 @@ function XRStatusPanel({
   const session = useXR((state) => state.session)
   return (
     <group position={[-0.7, 1.75, -1.15]}>
-      <Root pixelSize={0.0015}>
-        <Container
-          flexDirection="column"
-          width={250}
-          padding={12}
-          gap={7}
-          borderRadius={8}
-          backgroundColor="#101827"
-          backgroundOpacity={0.88}
-        >
-          <Text fontSize={14} color="#f8fafc">
-            MEMORY SWARM
-          </Text>
-          <Text fontSize={10} color="#b7c4e9">
-            AI {workerStatus} · room {roomStatus} · mic {recorderStatus}
-          </Text>
-          <Text fontSize={10} color="#b7c4e9">
-            Hold palm up or pinch/trigger to summon; release to send.
-          </Text>
-          <Container flexDirection="row" gap={6}>
-            <Container
-              paddingX={8}
-              paddingY={5}
-              borderRadius={5}
-              backgroundColor="#334155"
-              onClick={onMute}
-            >
-              <Text fontSize={10} color="#f8fafc">
-                {muted ? 'Unmute' : 'Mute chimes'}
-              </Text>
-            </Container>
-            <Container
-              paddingX={8}
-              paddingY={5}
-              borderRadius={5}
-              backgroundColor="#7f1d1d"
-              onClick={() => void session?.end()}
-            >
-              <Text fontSize={10} color="#fee2e2">
-                Exit XR
-              </Text>
-            </Container>
+      <Container
+        pixelSize={0.0015}
+        flexDirection="column"
+        width={250}
+        padding={12}
+        gap={7}
+        borderRadius={8}
+        backgroundColor="rgba(16,24,39,0.88)"
+      >
+        <Text fontSize={14} color="#f8fafc">
+          MEMORY SWARM
+        </Text>
+        <Text fontSize={10} color="#b7c4e9">
+          AI {workerStatus} · room {roomStatus} · mic {recorderStatus}
+        </Text>
+        <Text fontSize={10} color="#b7c4e9">
+          Hold palm up or pinch/trigger to summon; release to send.
+        </Text>
+        <Container flexDirection="row" gap={6}>
+          <Container
+            paddingX={8}
+            paddingY={5}
+            borderRadius={5}
+            backgroundColor="#334155"
+            onClick={onMute}
+          >
+            <Text fontSize={10} color="#f8fafc">
+              {muted ? 'Unmute' : 'Mute chimes'}
+            </Text>
+          </Container>
+          <Container
+            paddingX={8}
+            paddingY={5}
+            borderRadius={5}
+            backgroundColor="#7f1d1d"
+            onClick={() => void session?.end()}
+          >
+            <Text fontSize={10} color="#fee2e2">
+              Exit XR
+            </Text>
           </Container>
         </Container>
-      </Root>
+      </Container>
     </group>
   )
 }
