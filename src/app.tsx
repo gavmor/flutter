@@ -56,6 +56,32 @@ function unlockSpatialAudio() {
   })
 }
 
+function reportCaptureFailure(id: string, cause: unknown) {
+  const store = useButterflyStore.getState()
+  store.restoreSummoned(id)
+  store.setError(
+    cause instanceof Error ? cause.message : 'Microphone capture failed.',
+    id,
+  )
+}
+
+function startCapture(recorder: ButterflyRecorder, id: string) {
+  void recorder
+    .startRecording(id)
+    .catch((cause) => reportCaptureFailure(id, cause))
+}
+
+async function finishCapture(recorder: ButterflyRecorder, id: string) {
+  try {
+    const result = await recorder.stopRecording(id)
+    const store = useButterflyStore.getState()
+    if (result) store.submitAudioToWorker(id, result.audioUrl, result.pcm16kHz)
+    else store.restoreSummoned(id)
+  } catch (cause) {
+    reportCaptureFailure(id, cause)
+  }
+}
+
 function findNearestButterfly(
   position: THREE.Vector3,
   maxDistance: number,
@@ -95,19 +121,15 @@ function Experience({
   const workerStatus = useButterflyStore((state) => state.workerStatus)
   const roomStatus = useButterflyStore((state) => state.roomStatus)
   const kinematics = useButterflyStore.getState().kinematics
-  const spawnRecordingButterfly = useButterflyStore(
-    (state) => state.spawnRecordingButterfly,
-  )
-  const submitAudioToWorker = useButterflyStore(
-    (state) => state.submitAudioToWorker,
-  )
+  const summonButterfly = useButterflyStore((state) => state.summonButterfly)
   const togglePluck = useButterflyStore((state) => state.togglePluck)
   const deleteNote = useButterflyStore((state) => state.deleteNote)
   const setError = useButterflyStore((state) => state.setError)
   const updatePerch = useButterflyStore((state) => state.updatePerch)
   const registerVisual = useButterflyStore((state) => state.registerVisual)
   const setPluckPosition = useButterflyStore((state) => state.setPluckPosition)
-  const recordings = useRef(new Map<string, string>())
+  const summons = useRef(new Map<string, string>())
+  const recordingHolds = useRef(new Set<string>())
   const [focusedIds, setFocusedIds] = useState<Set<string>>(() => new Set())
   const onAudioError = useCallback(
     (id: string, message: string) => setError(message, id),
@@ -129,30 +151,29 @@ function Experience({
 
   const onSummonStart = useCallback(
     (position: THREE.Vector3, sourceId: string) => {
-      if (!useButterflyStore.getState().workerReady) {
-        setError('Load AI from the XR status panel before recording a memory.')
-        return
-      }
-      if (recordings.current.size > 0 || recordings.current.has(sourceId))
-        return
+      if (summons.current.has(sourceId)) return
       const id = crypto.randomUUID()
-      recordings.current.set(sourceId, id)
-      spawnRecordingButterfly(id, position)
-      void recorder.startRecording(id).catch((cause) => {
-        setError(
-          cause instanceof Error ? cause.message : 'Microphone capture failed.',
-          id,
-        )
-        recordings.current.delete(sourceId)
-        deleteNote(id)
-      })
+      summons.current.set(sourceId, id)
+      summonButterfly(id, position)
     },
-    [deleteNote, recorder, setError, spawnRecordingButterfly],
+    [summonButterfly],
+  )
+
+  const onRecordStart = useCallback(
+    (sourceId: string) => {
+      const id = summons.current.get(sourceId)
+      const store = useButterflyStore.getState()
+      if (!id || !store.workerReady || store.notes[id]?.state !== 'SUMMONED')
+        return
+      recordingHolds.current.add(sourceId)
+      startCapture(recorder, id)
+    },
+    [recorder],
   )
 
   const onSummonMove = useCallback(
     (position: THREE.Vector3, sourceId: string) => {
-      const id = recordings.current.get(sourceId)
+      const id = summons.current.get(sourceId)
       if (id) updatePerch(id, position)
     },
     [updatePerch],
@@ -160,32 +181,43 @@ function Experience({
 
   const onSummonEnd = useCallback(
     (sourceId: string) => {
-      const id = recordings.current.get(sourceId)
-      if (!id) return
-      recordings.current.delete(sourceId)
-      void recorder
-        .stopRecording(id)
-        .then((result) => {
-          if (result) submitAudioToWorker(id, result.audioUrl, result.pcm16kHz)
-          else deleteNote(id)
-        })
-        .catch((cause) => {
-          deleteNote(id)
-          setError(
-            cause instanceof Error
-              ? cause.message
-              : 'Recording could not be processed.',
-            id,
-          )
-        })
+      const id = summons.current.get(sourceId)
+      summons.current.delete(sourceId)
+      if (
+        recordingHolds.current.delete(sourceId) &&
+        id &&
+        useButterflyStore.getState().notes[id]?.state === 'RECORDING'
+      )
+        void finishCapture(recorder, id)
     },
-    [deleteNote, recorder, setError, submitAudioToWorker],
+    [recorder],
+  )
+
+  const onRecord = useCallback(
+    (id: string) => {
+      if (useButterflyStore.getState().notes[id]?.state === 'RECORDING')
+        void finishCapture(recorder, id)
+      else startCapture(recorder, id)
+    },
+    [recorder],
+  )
+
+  const onDelete = useCallback(
+    (id: string) => {
+      recorder.cancelRecording(id)
+      deleteNote(id)
+    },
+    [deleteNote, recorder.cancelRecording],
   )
 
   const onPinchStart = useCallback(
-    (position: THREE.Vector3) => {
+    (position: THREE.Vector3, sourceId: string) => {
       const nearest = findNearestButterfly(position, 0.14, false)
       if (!nearest) return false
+      if (useButterflyStore.getState().notes[nearest]?.state === 'SUMMONED') {
+        summons.current.set(sourceId, nearest)
+        return false
+      }
       setFocusedIds((current) => {
         const next = new Set(current)
         next.add(nearest)
@@ -209,6 +241,7 @@ function Experience({
   useHandSummonGesture({
     onSummonStart,
     onSummonMove,
+    onRecordStart,
     onPinchMove,
     onSummonEnd,
     onPinchStart,
@@ -229,7 +262,8 @@ function Experience({
               note={note}
               registerVisual={registerVisual}
               onTogglePluck={togglePluck}
-              onDelete={deleteNote}
+              onDelete={onDelete}
+              onRecord={onRecord}
               onAudioError={onAudioError}
               onFocus={onFocus}
               onFocusOut={onFocusOut}
@@ -264,13 +298,14 @@ function DesktopSceneControls({
   onMute: () => void
 }) {
   const spawnText = useButterflyStore((state) => state.submitText)
-  const spawn = useButterflyStore((state) => state.spawnRecordingButterfly)
-  const submitAudio = useButterflyStore((state) => state.submitAudioToWorker)
-  const deleteNote = useButterflyStore((state) => state.deleteNote)
+  const summon = useButterflyStore((state) => state.summonButterfly)
   const setError = useButterflyStore((state) => state.setError)
   const workerReady = useButterflyStore((state) => state.workerReady)
   const [text, setText] = useState('')
   const [desktopId, setDesktopId] = useState<string | null>(null)
+  const recordingState = useButterflyStore((state) =>
+    desktopId ? state.notes[desktopId]?.state : undefined,
+  )
   const desktopIdRef = useRef<string | null>(null)
   const desktopPosition = useRef(new THREE.Vector3(0, 1.4, -1)).current
 
@@ -278,6 +313,9 @@ function DesktopSceneControls({
     desktopIdRef.current = id
     setDesktopId(id)
   }, [])
+  useEffect(() => {
+    if (desktopId && recordingState !== 'RECORDING') updateDesktopId(null)
+  }, [desktopId, recordingState, updateDesktopId])
 
   useEffect(
     () => () => {
@@ -291,19 +329,7 @@ function DesktopSceneControls({
     const activeId = desktopIdRef.current
     if (activeId) {
       updateDesktopId(null)
-      try {
-        const result = await recorder.stopRecording(activeId)
-        if (result) submitAudio(activeId, result.audioUrl, result.pcm16kHz)
-        else deleteNote(activeId)
-      } catch (cause) {
-        setError(
-          cause instanceof Error
-            ? cause.message
-            : 'Recording could not be processed.',
-          activeId,
-        )
-        deleteNote(activeId)
-      }
+      await finishCapture(recorder, activeId)
       return
     }
     const id = crypto.randomUUID()
@@ -312,19 +338,8 @@ function DesktopSceneControls({
       return
     }
     updateDesktopId(id)
-    spawn(id, desktopPosition)
-    try {
-      await recorder.startRecording(id)
-      if (desktopIdRef.current !== id) return
-    } catch (cause) {
-      if (desktopIdRef.current !== id) return
-      updateDesktopId(null)
-      setError(
-        cause instanceof Error ? cause.message : 'Microphone capture failed.',
-        id,
-      )
-      deleteNote(id)
-    }
+    summon(id, desktopPosition)
+    startCapture(recorder, id)
   }
 
   const submitText = (event: React.FormEvent<HTMLFormElement>) => {
@@ -345,6 +360,13 @@ function DesktopSceneControls({
 
   return (
     <div className="desktop-scene-controls">
+      <button
+        type="button"
+        className="control-button"
+        onClick={() => summon(crypto.randomUUID(), desktopPosition)}
+      >
+        Summon butterfly
+      </button>
       <button
         type="button"
         className="control-button"

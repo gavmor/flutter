@@ -116,7 +116,8 @@ export function SwarmPhysicsSystem() {
       if (entity.object) entity.object.visible = !entity.trackingBlocked
       if (entity.trackingBlocked) continue
       if (note.error) desired.copy(entity.currentPos)
-      else if (note.state === 'RECORDING') desired.copy(entity.perchPos)
+      else if (note.state === 'SUMMONED' || note.state === 'RECORDING')
+        desired.copy(entity.perchPos)
       else if (note.state === 'TRANSCRIBING') {
         desired.copy(entity.perchPos)
         desired.x += Math.sin(time * 2.5 + entity.phase) * 0.12
@@ -168,7 +169,11 @@ export function SwarmPhysicsSystem() {
         .clampLength(
           0,
           dt *
-            (note.state === 'PLUCKED' || note.state === 'RECORDING' ? 2 : 0.8),
+            (note.state === 'PLUCKED' ||
+            note.state === 'SUMMONED' ||
+            note.state === 'RECORDING'
+              ? 2
+              : 0.8),
         )
       desired.copy(entity.currentPos).add(difference)
       room.collider.constrainMovement(entity.currentPos, desired, safe)
@@ -178,7 +183,7 @@ export function SwarmPhysicsSystem() {
       entity.currentPos.copy(safe)
       if (entity.object) {
         entity.object.position.copy(entity.currentPos)
-        if (note.state === 'PLUCKED')
+        if (note.state === 'PLUCKED' || note.state === 'SUMMONED')
           entity.object.lookAt(viewer.x, entity.currentPos.y, viewer.z)
         else if (entity.velocity.lengthSq() > 0.001)
           entity.object.rotation.y = Math.atan2(
@@ -186,7 +191,10 @@ export function SwarmPhysicsSystem() {
             entity.velocity.z,
           )
       }
-      const perched = note.state === 'RECORDING' || note.state === 'PLUCKED'
+      const perched =
+        note.state === 'SUMMONED' ||
+        note.state === 'RECORDING' ||
+        note.state === 'PLUCKED'
       const angle =
         Math.sin(time * (perched ? 5 + entity.rms * 12 : 20) + entity.phase) *
         (0.65 + entity.rms * 0.3)

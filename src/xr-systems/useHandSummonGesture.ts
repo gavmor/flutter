@@ -7,6 +7,7 @@ import { isXRUIHovered } from './XRUIInteractionBoundary.js'
 interface GestureCallbacks {
   onSummonStart: (position: THREE.Vector3, sourceId: string) => void
   onSummonMove?: (position: THREE.Vector3, sourceId: string) => void
+  onRecordStart: (sourceId: string) => void
   onPinchMove?: (position: THREE.Vector3, sourceId: string) => void
   onSummonEnd: (sourceId: string) => void
   onPinchStart?: (position: THREE.Vector3, sourceId: string) => boolean
@@ -43,6 +44,7 @@ function readJoint(
 export function useHandSummonGesture({
   onSummonStart,
   onSummonMove,
+  onRecordStart,
   onPinchMove,
   onSummonEnd,
   onPinchStart,
@@ -50,6 +52,7 @@ export function useHandSummonGesture({
   const states = useXRInputSourceStates()
   const { gl } = useThree()
   const activeSummons = useRef(new Set<string>())
+  const recordingHolds = useRef(new Set<string>())
   const activePinches = useRef(new Set<string>())
   const consumedPinches = useRef(new Set<string>())
   const uiOwnedGestures = useRef(new Set<string>())
@@ -174,17 +177,20 @@ export function useHandSummonGesture({
         }
         const pinchConsumed = consumedPinches.current.has(id)
         if (candidate && !pinchConsumed) {
-          const since = candidateSince.current.get(id)
-          if (since == null) candidateSince.current.set(id, now)
-          const held = since != null && now - since >= 160
-          if (held && !activeSummons.current.has(id)) {
+          let since = candidateSince.current.get(id)
+          if (since == null) {
+            since = now
+            candidateSince.current.set(id, since)
             activeSummons.current.add(id)
             onSummonStart(position.clone(), id)
-          } else if (held && activeSummons.current.has(id)) {
-            onSummonMove?.(position, id)
+          } else onSummonMove?.(position, id)
+          if (now - since >= 160 && !recordingHolds.current.has(id)) {
+            recordingHolds.current.add(id)
+            onRecordStart(id)
           }
         } else {
           candidateSince.current.delete(id)
+          recordingHolds.current.delete(id)
           if (activeSummons.current.delete(id)) onSummonEnd(id)
         }
       }
@@ -194,6 +200,7 @@ export function useHandSummonGesture({
       for (const id of activeSummons.current) {
         if (!present.has(id)) {
           activeSummons.current.delete(id)
+          recordingHolds.current.delete(id)
           candidateSince.current.delete(id)
           onSummonEnd(id)
         }
@@ -209,6 +216,7 @@ export function useHandSummonGesture({
       gl,
       onPinchMove,
       onPinchStart,
+      onRecordStart,
       onSummonEnd,
       onSummonMove,
       onSummonStart,

@@ -10,6 +10,7 @@ import type {
 } from '../protocol'
 
 type ButterflyLifecycleState =
+  | 'SUMMONED'
   | 'RECORDING'
   | 'TRANSCRIBING'
   | 'TRANSIT'
@@ -58,7 +59,9 @@ export interface ButterflyStore {
   /** Dense transient registry avoids Map entry tuple allocation in the frame loop. */
   entities: ButterflyKinematics[]
   initWorker: () => void
-  spawnRecordingButterfly: (id: string, spawnPos: Vector3) => void
+  summonButterfly: (id: string, spawnPos: Vector3) => void
+  beginRecording: (id: string) => void
+  restoreSummoned: (id: string) => void
   submitAudioToWorker: (
     id: string,
     audioUrl: string,
@@ -238,7 +241,7 @@ export const useButterflyStore = create<ButterflyStore>((set, get) => {
         })
       }
     },
-    spawnRecordingButterfly: (id, spawnPos) => {
+    summonButterfly: (id, spawnPos) => {
       if (get().notes[id]) return
       const kin: ButterflyKinematics = {
         id,
@@ -268,12 +271,45 @@ export const useButterflyStore = create<ButterflyStore>((set, get) => {
           ...get().notes,
           [id]: {
             id,
-            text: 'Listening…',
+            text: 'Butterfly summoned. Choose Record when ready.',
             audioUrl: '',
             semanticColorHSL: [0.55, 0.65, 0.7],
-            state: 'RECORDING',
+            state: 'SUMMONED',
             error: null,
             neighbors: [],
+          },
+        },
+      })
+    },
+    beginRecording: (id) => {
+      const note = get().notes[id]
+      if (note?.state !== 'SUMMONED')
+        throw new Error('Choose a summoned butterfly before recording.')
+      if (!get().workerReady)
+        throw new Error('Load AI before recording a memory.')
+      set({
+        notes: {
+          ...get().notes,
+          [id]: {
+            ...note,
+            state: 'RECORDING',
+            text: 'Listening…',
+            error: null,
+          },
+        },
+      })
+    },
+    restoreSummoned: (id) => {
+      const note = get().notes[id]
+      if (note?.state !== 'RECORDING') return
+      get().setRecordingRms(id, 0)
+      set({
+        notes: {
+          ...get().notes,
+          [id]: {
+            ...note,
+            state: 'SUMMONED',
+            text: 'Butterfly summoned. Choose Record when ready.',
           },
         },
       })
@@ -322,7 +358,7 @@ export const useButterflyStore = create<ButterflyStore>((set, get) => {
       if (!get().workerReady)
         throw new Error('Initialize the WebGPU models before adding a memory.')
       const id = crypto.randomUUID()
-      get().spawnRecordingButterfly(id, spawnPos)
+      get().summonButterfly(id, spawnPos)
       const note = get().notes[id]
       set({
         notes: {
@@ -370,7 +406,8 @@ export const useButterflyStore = create<ButterflyStore>((set, get) => {
       const notes = { ...get().notes }
       delete notes[id]
       set({ notes })
-      if (aiWorker) send({ type: 'REMOVE_NOTE', id })
+      if (aiWorker && note.state !== 'SUMMONED' && note.state !== 'RECORDING')
+        send({ type: 'REMOVE_NOTE', id })
     },
     markHovered: (id) => {
       const note = get().notes[id]

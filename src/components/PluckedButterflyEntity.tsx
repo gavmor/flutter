@@ -8,7 +8,10 @@ import {
   resumeXRAudio,
   useXRAudioListener,
 } from '../audio/XRAudioListenerProvider.js'
-import type { ButterflyMetadata } from '../state/useButterflyStore.js'
+import {
+  type ButterflyMetadata,
+  useButterflyStore,
+} from '../state/useButterflyStore.js'
 import { XRUIInteractionBoundary } from '../xr-systems/XRUIInteractionBoundary.js'
 
 interface PluckedButterflyEntityProps {
@@ -21,6 +24,7 @@ interface PluckedButterflyEntityProps {
   ) => () => void
   onTogglePluck: (id: string, handPosition?: THREE.Vector3) => void
   onDelete: (id: string) => void
+  onRecord: (id: string) => void
   onAudioError?: (id: string, message: string) => void
   onFocus?: (id: string) => void
   onFocusOut?: (id: string) => void
@@ -60,6 +64,7 @@ export function PluckedButterflyEntity({
   registerVisual,
   onTogglePluck,
   onDelete,
+  onRecord,
   onAudioError,
   onFocus,
   onFocusOut,
@@ -70,6 +75,7 @@ export function PluckedButterflyEntity({
   const rightWingRef = useRef<THREE.Mesh>(null)
   const listener = useXRAudioListener()
   const session = useXR((state) => state.session)
+  const workerReady = useButterflyStore((state) => state.workerReady)
   const soundRef = useRef<THREE.PositionalAudio | null>(null)
   const desiredPlayingRef = useRef(false)
 
@@ -244,7 +250,9 @@ export function PluckedButterflyEntity({
     initializeAudioForGesture()
     if (!session) onTogglePluck(note.id, event.point)
   }
-  const showCard = note.state === 'PLUCKED' || note.error != null
+  const pending = note.state === 'SUMMONED' || note.state === 'RECORDING'
+  const showCard = pending || note.state === 'PLUCKED' || note.error != null
+  const canRecord = workerReady || note.state === 'RECORDING'
 
   return (
     <group
@@ -280,13 +288,31 @@ export function PluckedButterflyEntity({
               <Text fontSize={14} color="#f8fafc" maxWidth={220}>
                 {note.text || 'No transcription yet.'}
               </Text>
+              {pending && !workerReady && (
+                <Text fontSize={10} color="#cbd5e1">
+                  Load AI in the status panel before recording.
+                </Text>
+              )}
               {note.error && (
                 <Text fontSize={10} color="#fb7185">
                   {note.error}
                 </Text>
               )}
               <Container flexDirection="row" gap={6} marginTop={8}>
-                {!note.error && (
+                {pending && (
+                  <Container
+                    paddingX={8}
+                    paddingY={5}
+                    borderRadius={5}
+                    backgroundColor={canRecord ? '#1d4ed8' : '#334155'}
+                    onClick={canRecord ? () => onRecord(note.id) : undefined}
+                  >
+                    <Text fontSize={10} color="#eff6ff">
+                      {note.state === 'RECORDING' ? 'Stop' : 'Record'}
+                    </Text>
+                  </Container>
+                )}
+                {note.state === 'PLUCKED' && !note.error && (
                   <Container
                     paddingX={8}
                     paddingY={5}
@@ -299,7 +325,7 @@ export function PluckedButterflyEntity({
                     </Text>
                   </Container>
                 )}
-                {!note.error && (
+                {note.state === 'PLUCKED' && !note.error && (
                   <Container
                     paddingX={8}
                     paddingY={5}

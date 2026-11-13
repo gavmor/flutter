@@ -180,6 +180,7 @@ export function useButterflyRecorder(): ButterflyRecorder {
         activeRef.current?.recorder.state === 'recording'
       )
         throw new Error('Another recording is already active.')
+      useButterflyStore.getState().beginRecording(id)
       const pending: PendingRecording = { id, cancelled: false }
       pendingRef.current = pending
       const hadWarmStream = streamRef.current?.active === true

@@ -257,6 +257,31 @@ class WorkerTransport {
   }
 }
 
+test('summoning is visible state without AI, while recording requires readiness and cancellation preserves the butterfly', () => {
+  const store = useButterflyStore
+  store.getState().dispose()
+  try {
+    store.getState().summonButterfly('pending', new Vector3(0, 1.4, -0.8))
+    assert.equal(store.getState().notes.pending.state, 'SUMMONED')
+    assert.equal(store.getState().notes.pending.error, null)
+    assert.equal(store.getState().entities.length, 1)
+    assert.ok(store.getState().kinematics.has('pending'))
+    assert.throws(() => store.getState().beginRecording('pending'), /Load AI/)
+    assert.equal(store.getState().notes.pending.state, 'SUMMONED')
+    store.setState({ workerReady: true })
+    store.getState().beginRecording('pending')
+    assert.equal(store.getState().notes.pending.state, 'RECORDING')
+    store.getState().restoreSummoned('pending')
+    assert.equal(store.getState().notes.pending.state, 'SUMMONED')
+    assert.equal(store.getState().notes.pending.audioUrl, '')
+    store.getState().deleteNote('pending')
+    assert.equal(store.getState().entities.length, 0)
+    assert.equal(store.getState().kinematics.size, 0)
+  } finally {
+    store.getState().dispose()
+  }
+})
+
 test('store bridge applies all targets before metadata, enforces lifecycle, transfers audio and disposes', () => {
   const originalWorker = globalThis.Worker
   globalThis.Worker = WorkerTransport as unknown as typeof Worker
@@ -267,12 +292,26 @@ test('store bridge applies all targets before metadata, enforces lifecycle, tran
     store.getState().initWorker()
     const transport = WorkerTransport.current
     transport.receive({
+      type: 'STATUS',
+      stage: 'Loading Whisper',
+      progress: 0.25,
+    })
+    store.getState().summonButterfly('draft', new Vector3(0, 1.4, 0))
+    store.getState().deleteNote('draft')
+    assert.deepEqual(
+      transport.requests.map((request) => request.type),
+      ['INIT'],
+    )
+    assert.equal(store.getState().workerMessage, 'Loading Whisper')
+    assert.equal(store.getState().workerProgress, 0.25)
+    transport.receive({
       type: 'READY',
       embeddingModel: 'mixedbread-ai/mxbai-embed-xsmall-v1',
       dimensions: 384,
     })
     const origin = new Vector3(0, 1, 0)
-    store.getState().spawnRecordingButterfly('a', origin)
+    store.getState().summonButterfly('a', origin)
+    store.getState().beginRecording('a')
     store.getState().togglePluck('a')
     assert.equal(store.getState().notes.a.state, 'RECORDING')
     const audio = new Float32Array([0.1, -0.1])
@@ -471,7 +510,8 @@ test('unexpected worker failure resets semantic session, revokes audio, and pres
     store
       .getState()
       .publishRoom({ ...emptyRoom(), revision: 4, status: 'partial' })
-    store.getState().spawnRecordingButterfly('crash-note', new Vector3(0, 1, 0))
+    store.getState().summonButterfly('crash-note', new Vector3(0, 1, 0))
+    store.getState().beginRecording('crash-note')
     store
       .getState()
       .submitAudioToWorker('crash-note', audioUrl, new Float32Array([0.1]))
