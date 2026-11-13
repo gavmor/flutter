@@ -9,6 +9,7 @@ import {
   useXRAudioListener,
 } from '../audio/XRAudioListenerProvider.js'
 import type { ButterflyMetadata } from '../state/useButterflyStore.js'
+import { XRUIInteractionBoundary } from '../xr-systems/XRUIInteractionBoundary.js'
 
 interface PluckedButterflyEntityProps {
   note: ButterflyMetadata
@@ -263,69 +264,68 @@ export function PluckedButterflyEntity({
         />
       </mesh>
       {showCard && (
-        <group
-          position={[0, 0.2, 0]}
-          onPointerDown={(event) => event.stopPropagation()}
-        >
-          <Container
-            pixelSize={0.0018}
-            flexDirection="column"
-            width={240}
-            padding={12}
-            gap={8}
-            borderRadius={8}
-            backgroundColor="rgba(16,24,39,0.94)"
-            borderWidth={1.5}
-            borderColor={wingColor}
-          >
-            <Text fontSize={14} color="#f8fafc" maxWidth={220}>
-              {note.text || 'No transcription yet.'}
-            </Text>
-            {note.error && (
-              <Text fontSize={10} color="#fb7185">
-                {note.error}
+        <group position={[0, 0.2, 0]}>
+          <XRUIInteractionBoundary>
+            <Container
+              pixelSize={0.0018}
+              flexDirection="column"
+              width={240}
+              padding={12}
+              gap={8}
+              borderRadius={8}
+              backgroundColor="rgba(16,24,39,0.94)"
+              borderWidth={1.5}
+              borderColor={wingColor}
+            >
+              <Text fontSize={14} color="#f8fafc" maxWidth={220}>
+                {note.text || 'No transcription yet.'}
               </Text>
-            )}
-            <Container flexDirection="row" gap={6} marginTop={8}>
-              {!note.error && (
-                <Container
-                  paddingX={8}
-                  paddingY={5}
-                  borderRadius={5}
-                  backgroundColor="#1d4ed8"
-                  onClick={replayVoiceMemo}
-                >
-                  <Text fontSize={10} color="#eff6ff">
-                    Replay
-                  </Text>
-                </Container>
-              )}
-              {!note.error && (
-                <Container
-                  paddingX={8}
-                  paddingY={5}
-                  borderRadius={5}
-                  backgroundColor="#334155"
-                  onClick={() => onTogglePluck(note.id)}
-                >
-                  <Text fontSize={10} color="#f8fafc">
-                    Release
-                  </Text>
-                </Container>
-              )}
-              <Container
-                paddingX={8}
-                paddingY={5}
-                borderRadius={5}
-                backgroundColor="#7f1d1d"
-                onClick={() => onDelete(note.id)}
-              >
-                <Text fontSize={10} color="#fee2e2">
-                  Delete
+              {note.error && (
+                <Text fontSize={10} color="#fb7185">
+                  {note.error}
                 </Text>
+              )}
+              <Container flexDirection="row" gap={6} marginTop={8}>
+                {!note.error && (
+                  <Container
+                    paddingX={8}
+                    paddingY={5}
+                    borderRadius={5}
+                    backgroundColor="#1d4ed8"
+                    onClick={replayVoiceMemo}
+                  >
+                    <Text fontSize={10} color="#eff6ff">
+                      Replay
+                    </Text>
+                  </Container>
+                )}
+                {!note.error && (
+                  <Container
+                    paddingX={8}
+                    paddingY={5}
+                    borderRadius={5}
+                    backgroundColor="#334155"
+                    onClick={() => onTogglePluck(note.id)}
+                  >
+                    <Text fontSize={10} color="#f8fafc">
+                      Release
+                    </Text>
+                  </Container>
+                )}
+                <Container
+                  paddingX={8}
+                  paddingY={5}
+                  borderRadius={5}
+                  backgroundColor="#7f1d1d"
+                  onClick={() => onDelete(note.id)}
+                >
+                  <Text fontSize={10} color="#fee2e2">
+                    Delete
+                  </Text>
+                </Container>
               </Container>
             </Container>
-          </Container>
+          </XRUIInteractionBoundary>
         </group>
       )}
     </group>

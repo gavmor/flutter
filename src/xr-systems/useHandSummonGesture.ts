@@ -2,6 +2,7 @@ import { useFrame, useThree } from '@react-three/fiber'
 import { useXRInputSourceStates } from '@react-three/xr'
 import { useCallback, useRef } from 'react'
 import * as THREE from 'three'
+import { isXRUIHovered } from './XRUIInteractionBoundary.js'
 
 interface GestureCallbacks {
   onSummonStart: (position: THREE.Vector3, sourceId: string) => void
@@ -51,6 +52,7 @@ export function useHandSummonGesture({
   const activeSummons = useRef(new Set<string>())
   const activePinches = useRef(new Set<string>())
   const consumedPinches = useRef(new Set<string>())
+  const uiOwnedGestures = useRef(new Set<string>())
   const seen = useRef(new Set<string>())
   const candidateSince = useRef(new Map<string, number>())
   const wrist = useRef(new THREE.Vector3())
@@ -143,8 +145,22 @@ export function useHandSummonGesture({
           const squeeze =
             state.gamepad?.['xr-standard-squeeze']?.state === 'pressed'
           candidate = trigger || squeeze
-          pinch = trigger
+          pinch = trigger || squeeze
         } else continue
+
+        if (!candidate && !pinch) uiOwnedGestures.current.delete(id)
+        if (
+          isXRUIHovered(source) &&
+          !activeSummons.current.has(id) &&
+          !consumedPinches.current.has(id) &&
+          (candidate || pinch)
+        ) {
+          uiOwnedGestures.current.add(id)
+        }
+        if (uiOwnedGestures.current.has(id)) {
+          candidateSince.current.delete(id)
+          continue
+        }
 
         if (pinch && !activePinches.current.has(id)) {
           activePinches.current.add(id)
@@ -171,6 +187,9 @@ export function useHandSummonGesture({
           candidateSince.current.delete(id)
           if (activeSummons.current.delete(id)) onSummonEnd(id)
         }
+      }
+      for (const id of uiOwnedGestures.current) {
+        if (!present.has(id)) uiOwnedGestures.current.delete(id)
       }
       for (const id of activeSummons.current) {
         if (!present.has(id)) {

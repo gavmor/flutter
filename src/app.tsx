@@ -23,6 +23,7 @@ import { SemanticFilaments } from './components/SemanticFilaments.js'
 import { useButterflyStore } from './state/useButterflyStore.js'
 import { SwarmPhysicsSystem } from './xr-systems/SwarmPhysicsSystem.js'
 import { useHandSummonGesture } from './xr-systems/useHandSummonGesture.js'
+import { XRUIInteractionBoundary } from './xr-systems/XRUIInteractionBoundary.js'
 import './app.css'
 
 const xrStore = createXRStore({
@@ -31,6 +32,16 @@ const xrStore = createXRStore({
   meshDetection: true,
   planeDetection: true,
   hitTest: true,
+  // XR controls activate on same-target release, including deliberate long holds.
+  controller: {
+    grabPointer: false,
+    rayPointer: { minDistance: 0, clickThresholdMs: Infinity },
+  },
+  hand: {
+    rayPointer: { minDistance: 0, clickThresholdMs: Infinity },
+    grabPointer: { clickThresholdMs: Infinity },
+    touchPointer: { clickThresholdMs: Infinity },
+  },
 })
 
 function unlockSpatialAudio() {
@@ -118,6 +129,10 @@ function Experience({
 
   const onSummonStart = useCallback(
     (position: THREE.Vector3, sourceId: string) => {
+      if (!useButterflyStore.getState().workerReady) {
+        setError('Load AI from the XR status panel before recording a memory.')
+        return
+      }
       if (recordings.current.size > 0 || recordings.current.has(sourceId))
         return
       const id = crypto.randomUUID()
@@ -253,6 +268,7 @@ function DesktopSceneControls({
   const submitAudio = useButterflyStore((state) => state.submitAudioToWorker)
   const deleteNote = useButterflyStore((state) => state.deleteNote)
   const setError = useButterflyStore((state) => state.setError)
+  const workerReady = useButterflyStore((state) => state.workerReady)
   const [text, setText] = useState('')
   const [desktopId, setDesktopId] = useState<string | null>(null)
   const desktopIdRef = useRef<string | null>(null)
@@ -291,6 +307,10 @@ function DesktopSceneControls({
       return
     }
     const id = crypto.randomUUID()
+    if (!useButterflyStore.getState().workerReady) {
+      setError('Load AI before recording a memory.')
+      return
+    }
     updateDesktopId(id)
     spawn(id, desktopPosition)
     try {
@@ -328,6 +348,8 @@ function DesktopSceneControls({
       <button
         type="button"
         className="control-button"
+        disabled={!workerReady && !desktopId}
+        title={!workerReady ? 'Load AI before recording.' : undefined}
         onClick={() => void toggleRecording()}
       >
         {desktopId ? 'Stop recording' : 'Record note'}
@@ -346,7 +368,11 @@ function DesktopSceneControls({
           onChange={(event) => setText(event.target.value)}
           placeholder="Type a note into the swarm"
         />
-        <button className="control-button" type="submit">
+        <button
+          className="control-button"
+          type="submit"
+          disabled={!workerReady}
+        >
           Release text
         </button>
       </form>
@@ -595,51 +621,76 @@ function XRStatusPanel({
   onMute: () => void
 }) {
   const session = useXR((state) => state.session)
+  const initWorker = useButterflyStore((state) => state.initWorker)
+  const workerMessage = useButterflyStore((state) => state.workerMessage)
   return (
     <group position={[-0.7, 1.75, -1.15]}>
-      <Container
-        pixelSize={0.0015}
-        flexDirection="column"
-        width={250}
-        padding={12}
-        gap={7}
-        borderRadius={8}
-        backgroundColor="rgba(16,24,39,0.88)"
-      >
-        <Text fontSize={14} color="#f8fafc">
-          MEMORY SWARM
-        </Text>
-        <Text fontSize={10} color="#b7c4e9">
-          AI {workerStatus} / room {roomStatus} / mic {recorderStatus}
-        </Text>
-        <Text fontSize={10} color="#b7c4e9">
-          Hold palm up or pinch/trigger to summon; release to send.
-        </Text>
-        <Container flexDirection="row" gap={6}>
-          <Container
-            paddingX={8}
-            paddingY={5}
-            borderRadius={5}
-            backgroundColor="#334155"
-            onClick={onMute}
-          >
-            <Text fontSize={10} color="#f8fafc">
-              {muted ? 'Unmute' : 'Mute chimes'}
-            </Text>
-          </Container>
-          <Container
-            paddingX={8}
-            paddingY={5}
-            borderRadius={5}
-            backgroundColor="#7f1d1d"
-            onClick={() => void session?.end()}
-          >
-            <Text fontSize={10} color="#fee2e2">
-              Exit XR
-            </Text>
+      <XRUIInteractionBoundary>
+        <Container
+          pixelSize={0.0015}
+          flexDirection="column"
+          width={250}
+          padding={12}
+          gap={7}
+          borderRadius={8}
+          backgroundColor="rgba(16,24,39,0.88)"
+        >
+          <Text fontSize={14} color="#f8fafc">
+            MEMORY SWARM
+          </Text>
+          <Text fontSize={10} color="#b7c4e9">
+            AI {workerStatus} / room {roomStatus} / mic {recorderStatus}
+          </Text>
+          <Text fontSize={10} color="#b7c4e9">
+            {workerStatus === 'ready'
+              ? 'Hold palm up or hold a trigger away from UI to record; release to send.'
+              : `Load AI before recording. ${workerMessage}`}
+          </Text>
+          <Container flexDirection="row" gap={6}>
+            <Container
+              paddingX={8}
+              paddingY={5}
+              borderRadius={5}
+              backgroundColor="#1d4ed8"
+              onClick={
+                workerStatus === 'idle' || workerStatus === 'error'
+                  ? initWorker
+                  : undefined
+              }
+            >
+              <Text fontSize={10} color="#f8fafc">
+                {workerStatus === 'loading'
+                  ? 'Loading AI'
+                  : workerStatus === 'ready'
+                    ? 'AI ready'
+                    : 'Load AI'}
+              </Text>
+            </Container>
+            <Container
+              paddingX={8}
+              paddingY={5}
+              borderRadius={5}
+              backgroundColor="#334155"
+              onClick={onMute}
+            >
+              <Text fontSize={10} color="#f8fafc">
+                {muted ? 'Unmute' : 'Mute chimes'}
+              </Text>
+            </Container>
+            <Container
+              paddingX={8}
+              paddingY={5}
+              borderRadius={5}
+              backgroundColor="#7f1d1d"
+              onClick={() => void session?.end()}
+            >
+              <Text fontSize={10} color="#fee2e2">
+                Exit XR
+              </Text>
+            </Container>
           </Container>
         </Container>
-      </Container>
+      </XRUIInteractionBoundary>
     </group>
   )
 }
