@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useButterflyStore } from '../state/useButterflyStore.js'
+import {
+  getXRAudioContext,
+  initializeXRAudio,
+} from './XRAudioListenerProvider.js'
 
 type ActiveRecording = {
   id: string
@@ -55,6 +59,7 @@ export function useButterflyRecorder(): ButterflyRecorder {
   const activeRef = useRef<ActiveRecording | null>(null)
   const activeIdRef = useRef<string | null>(null)
   const analyserRef = useRef<AnalyserNode | null>(null)
+  const analyserSourceRef = useRef<MediaStreamAudioSourceNode | null>(null)
   const audioContextRef = useRef<AudioContext | null>(null)
   const rmsFrameRef = useRef<number | null>(null)
   const urlsRef = useRef<string[]>([])
@@ -63,21 +68,25 @@ export function useButterflyRecorder(): ButterflyRecorder {
   const stopRmsMeter = useCallback(() => {
     if (rmsFrameRef.current != null) cancelAnimationFrame(rmsFrameRef.current)
     rmsFrameRef.current = null
+    analyserSourceRef.current?.disconnect()
+    analyserSourceRef.current = null
     analyserRef.current?.disconnect()
     analyserRef.current = null
-    audioContextRef.current?.close().catch(() => undefined)
     audioContextRef.current = null
   }, [])
 
   const startRmsMeter = useCallback(
     (id: string, stream: MediaStream) => {
-      const context = new AudioContext()
+      const context = getXRAudioContext()
+      if (context?.state !== 'running')
+        throw new Error('Audio must be prepared before recording.')
       const source = context.createMediaStreamSource(stream)
       const analyser = context.createAnalyser()
       analyser.fftSize = 512
       source.connect(analyser)
       const values = new Uint8Array(analyser.fftSize)
       analyserRef.current = analyser
+      analyserSourceRef.current = source
       audioContextRef.current = context
       const tick = () => {
         if (
@@ -102,10 +111,6 @@ export function useButterflyRecorder(): ButterflyRecorder {
 
   const warmup = useCallback(async () => {
     if (disposedRef.current) throw new Error('Recorder is no longer mounted.')
-    if (streamRef.current?.active) {
-      if (mountedRef.current) setStatus('ready')
-      return
-    }
     if (mountedRef.current) {
       setStatus('warming')
       setError(null)
@@ -113,6 +118,12 @@ export function useButterflyRecorder(): ButterflyRecorder {
     try {
       if (!navigator.mediaDevices?.getUserMedia)
         throw new Error('Microphone capture is unavailable in this browser.')
+      const audioReady = initializeXRAudio()
+      if (streamRef.current?.active) {
+        await audioReady
+        if (mountedRef.current) setStatus('ready')
+        return
+      }
       let request = permissionRef.current
       if (!request) {
         request = navigator.mediaDevices.getUserMedia({
@@ -125,7 +136,18 @@ export function useButterflyRecorder(): ButterflyRecorder {
         })
         permissionRef.current = request
       }
-      const stream = await request
+      const [requestResult, audioResult] = await Promise.allSettled([
+        request,
+        audioReady,
+      ])
+      if (requestResult.status === 'rejected') throw requestResult.reason
+      const stream = requestResult.value
+      if (audioResult.status === 'rejected') {
+        stream.getTracks().forEach((track) => {
+          track.stop()
+        })
+        throw audioResult.reason
+      }
       if (disposedRef.current) {
         stream.getTracks().forEach((track) => {
           track.stop()
@@ -178,6 +200,9 @@ export function useButterflyRecorder(): ButterflyRecorder {
           throw new Error('Recorder is no longer mounted.')
         const stream = streamRef.current
         if (!stream) throw new Error('Microphone is not ready.')
+        const context = getXRAudioContext()
+        if (context?.state !== 'running')
+          throw new Error('Audio must be prepared before recording.')
         const mimeType = chooseMimeType()
         const recorder = new MediaRecorder(
           stream,
@@ -208,25 +233,21 @@ export function useButterflyRecorder(): ButterflyRecorder {
   )
 
   const decodeTo16kMono = useCallback(async (blob: Blob) => {
-    const sourceContext = new AudioContext()
-    try {
-      const decoded = await sourceContext.decodeAudioData(
-        await blob.arrayBuffer(),
-      )
-      const offline = new OfflineAudioContext(
-        1,
-        Math.max(1, Math.ceil(decoded.duration * 16000)),
-        16000,
-      )
-      const source = offline.createBufferSource()
-      source.buffer = decoded
-      source.connect(offline.destination)
-      source.start(0)
-      const rendered = await offline.startRendering()
-      return new Float32Array(rendered.getChannelData(0))
-    } finally {
-      await sourceContext.close().catch(() => undefined)
-    }
+    const sourceContext = new OfflineAudioContext(1, 1, 16000)
+    const decoded = await sourceContext.decodeAudioData(
+      await blob.arrayBuffer(),
+    )
+    const offline = new OfflineAudioContext(
+      1,
+      Math.max(1, Math.ceil(decoded.duration * 16000)),
+      16000,
+    )
+    const source = offline.createBufferSource()
+    source.buffer = decoded
+    source.connect(offline.destination)
+    source.start(0)
+    const rendered = await offline.startRendering()
+    return new Float32Array(rendered.getChannelData(0))
   }, [])
 
   const stopRecording = useCallback(

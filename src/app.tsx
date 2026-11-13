@@ -1,13 +1,23 @@
 import { Canvas } from '@react-three/fiber'
 import { Container, Text } from '@react-three/uikit'
-import { createXRStore, useXR, XR } from '@react-three/xr'
+import {
+  createXRStore,
+  noEvents,
+  PointerEvents,
+  useXR,
+  useXRSessionModeSupported,
+  XR,
+} from '@react-three/xr'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import * as THREE from 'three'
 import {
   type ButterflyRecorder,
   useButterflyRecorder,
 } from './audio/useButterflyRecorder.js'
-import { XRAudioListenerProvider } from './audio/XRAudioListenerProvider.js'
+import {
+  initializeXRAudio,
+  XRAudioListenerProvider,
+} from './audio/XRAudioListenerProvider.js'
 import { PluckedButterflyEntity } from './components/PluckedButterflyEntity.js'
 import { SemanticFilaments } from './components/SemanticFilaments.js'
 import { useButterflyStore } from './state/useButterflyStore.js'
@@ -22,6 +32,18 @@ const xrStore = createXRStore({
   planeDetection: true,
   hitTest: true,
 })
+
+function unlockSpatialAudio() {
+  void initializeXRAudio().catch((cause: unknown) => {
+    useButterflyStore
+      .getState()
+      .setError(
+        cause instanceof Error
+          ? cause.message
+          : 'Spatial audio could not start.',
+      )
+  })
+}
 
 function findNearestButterfly(
   position: THREE.Vector3,
@@ -339,28 +361,85 @@ export function App() {
   const roomStatus = useButterflyStore((state) => state.roomStatus)
   const roomError = useButterflyStore((state) => state.roomError)
   const globalError = useButterflyStore((state) => state.error)
+  const [xrErrors, setXrErrors] = useState<{
+    ar: string | null
+    vr: string | null
+  }>({ ar: null, vr: null })
+  const onSupportError = (mode: 'ar' | 'vr', cause: unknown) => {
+    const message =
+      cause instanceof Error
+        ? cause.message
+        : 'Browser permissions or site policy blocked the XR support check.'
+    setXrErrors((current) => ({ ...current, [mode]: message }))
+  }
+  const arSupported = useXRSessionModeSupported(
+    'immersive-ar',
+    (cause: unknown) => onSupportError('ar', cause),
+  )
+  const vrSupported = useXRSessionModeSupported(
+    'immersive-vr',
+    (cause: unknown) => onSupportError('vr', cause),
+  )
+  const xrAvailable = window.isSecureContext && navigator.xr != null
+  const gpuAvailable = 'gpu' in navigator && navigator.gpu != null
   const initWorker = useButterflyStore((state) => state.initWorker)
   const recorder = useButterflyRecorder()
   const [busy, setBusy] = useState(false)
   const [ambientMuted, setAmbientMuted] = useState(false)
   const [notice, setNotice] = useState(
-    'Warm the microphone before entering XR.',
+    'Desktop controls do not require XR. Prepare the microphone before entering an available XR mode.',
   )
   const dispose = useButterflyStore((state) => state.dispose)
   useEffect(() => () => dispose(), [dispose])
-
-  const enter = async (mode: 'ar' | 'vr') => {
+  const microphoneReady =
+    recorder.status === 'ready' ||
+    recorder.status === 'recording' ||
+    recorder.status === 'processing'
+  const prepareMicrophone = async () => {
     setBusy(true)
+    unlockSpatialAudio()
     try {
       await recorder.warmup()
+      setNotice(
+        'Microphone ready. Use a new click to enter an available XR mode, or record on desktop.',
+      )
+    } catch (cause) {
+      setNotice(
+        cause instanceof Error
+          ? cause.message
+          : 'Microphone permission could not be prepared.',
+      )
+    } finally {
+      setBusy(false)
+    }
+  }
+  const toggleAmbient = () => {
+    unlockSpatialAudio()
+    setAmbientMuted((value) => !value)
+  }
+
+  const enter = async (mode: 'ar' | 'vr') => {
+    const supported = mode === 'ar' ? arSupported : vrSupported
+    if (
+      !xrAvailable ||
+      supported !== true ||
+      xrErrors[mode] ||
+      !microphoneReady
+    )
+      return
+    setBusy(true)
+    try {
+      // requestSession must run in this click, before awaiting microphone/audio/model work.
+      const sessionRequest =
+        mode === 'ar' ? xrStore.enterAR() : xrStore.enterVR()
+      unlockSpatialAudio()
+      await sessionRequest
       initWorker()
       setNotice(
         mode === 'ar'
-          ? 'Room scan and hand tracking requested.'
-          : 'Controller tracking requested.',
+          ? 'AR session started; measured room geometry is requested.'
+          : 'VR session started; controller tracking is requested.',
       )
-      if (mode === 'ar') await xrStore.enterAR()
-      else await xrStore.enterVR()
     } catch (cause) {
       setNotice(cause instanceof Error ? cause.message : 'Could not start XR.')
     } finally {
@@ -374,18 +453,27 @@ export function App() {
         style={{ position: 'absolute', inset: 0 }}
         camera={{ position: [0, 1.4, 2.4], rotation: [0, 0, 0], fov: 60 }}
         gl={{ antialias: true, powerPreference: 'high-performance' }}
+        events={noEvents}
       >
         <XR store={xrStore}>
+          <PointerEvents />
           <Experience
             recorder={recorder}
             ambientMuted={ambientMuted}
-            onMute={() => setAmbientMuted((value) => !value)}
+            onMute={toggleAmbient}
           />
         </XR>
       </Canvas>
       <section className="hud" aria-live="polite">
         <div className="eyebrow">MORPHIC / MEMORY SWARM</div>
         <p className="notice">{notice}</p>
+        <p className="notice">
+          {!window.isSecureContext
+            ? 'Immersive XR requires a secure HTTPS connection.'
+            : !navigator.xr
+              ? 'Immersive XR is unavailable in this browser. Desktop controls remain available; immersive mode needs an XR-capable browser and device.'
+              : 'XR availability below is checked separately for AR and VR on this browser and device.'}
+        </p>
         <div className="status-grid">
           <span>
             AI <b className={`status-dot status-dot--${workerStatus}`} />
@@ -408,11 +496,11 @@ export function App() {
             {globalError || roomError || recorder.error}
           </p>
         )}
-        <div className="entry-actions">
+        <div className="entry-actions" style={{ flexWrap: 'wrap' }}>
           <button
             type="button"
             className="primary-button"
-            disabled={busy || workerStatus === 'loading'}
+            disabled={busy || !gpuAvailable || workerStatus === 'loading'}
             onClick={() => initWorker()}
           >
             {workerStatus === 'ready'
@@ -423,30 +511,72 @@ export function App() {
           </button>
           <button
             type="button"
-            className="primary-button"
-            disabled={busy}
-            onClick={() => void enter('ar')}
-          >
-            {busy ? 'Preparing…' : 'Enter AR'}
-          </button>
-          <button
-            type="button"
             className="secondary-button"
             disabled={busy}
-            onClick={() => void enter('vr')}
+            onClick={() => void prepareMicrophone()}
           >
-            Enter VR
+            {recorder.status === 'warming'
+              ? 'Preparing microphone…'
+              : microphoneReady
+                ? 'Microphone ready'
+                : 'Prepare microphone'}
           </button>
+          {(
+            [
+              { mode: 'ar', supported: arSupported },
+              { mode: 'vr', supported: vrSupported },
+            ] as const
+          ).map(({ mode, supported }) => {
+            const reason = !xrAvailable
+              ? 'Immersive XR is unavailable in this browser or connection.'
+              : xrErrors[mode]
+                ? `XR support check blocked: ${xrErrors[mode]}`
+                : supported === undefined
+                  ? 'Checking this XR mode…'
+                  : !supported
+                    ? `Immersive ${mode.toUpperCase()} is unsupported by this browser or device.`
+                    : !microphoneReady
+                      ? 'Prepare the microphone first, then enter with a new click.'
+                      : `Immersive ${mode.toUpperCase()} is available. Session permissions are checked when entering.`
+            return (
+              <button
+                key={mode}
+                type="button"
+                className="secondary-button"
+                disabled={
+                  busy ||
+                  !xrAvailable ||
+                  supported !== true ||
+                  !!xrErrors[mode] ||
+                  !microphoneReady
+                }
+                title={reason}
+                aria-label={`${mode.toUpperCase()}: ${reason}`}
+                onClick={() => void enter(mode)}
+              >
+                {!xrAvailable || supported === false
+                  ? `${mode.toUpperCase()} unavailable`
+                  : xrErrors[mode]
+                    ? `${mode.toUpperCase()} blocked`
+                    : supported === undefined
+                      ? `Checking ${mode.toUpperCase()}…`
+                      : `Enter ${mode.toUpperCase()}`}
+              </button>
+            )
+          })}
         </div>
         <small>
-          Requires microphone permission. Room geometry and semantic model
-          status are never simulated.
+          {!gpuAvailable
+            ? 'WebGPU is not exposed by this browser; semantic AI needs a compatible browser and GPU. '
+            : 'WebGPU API detected; model initialization still checks the actual GPU. '}
+          Desktop recording and typed semantic notes do not need WebXR. Room
+          geometry and model results are never simulated.
         </small>
       </section>
       <DesktopSceneControls
         recorder={recorder}
         muted={ambientMuted}
-        onMute={() => setAmbientMuted((value) => !value)}
+        onMute={toggleAmbient}
       />
     </main>
   )
@@ -480,7 +610,7 @@ function XRStatusPanel({
           MEMORY SWARM
         </Text>
         <Text fontSize={10} color="#b7c4e9">
-          AI {workerStatus} · room {roomStatus} · mic {recorderStatus}
+          AI {workerStatus} / room {roomStatus} / mic {recorderStatus}
         </Text>
         <Text fontSize={10} color="#b7c4e9">
           Hold palm up or pinch/trigger to summon; release to send.

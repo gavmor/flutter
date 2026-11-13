@@ -4,6 +4,7 @@ import { type RefObject, useCallback, useEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import { activeAudioAnalysers } from '../audio/activeAudioAnalysers.js'
 import {
+  initializeXRAudio,
   resumeXRAudio,
   useXRAudioListener,
 } from '../audio/XRAudioListenerProvider.js'
@@ -122,7 +123,17 @@ export function PluckedButterflyEntity({
     [listener, note.id, onAudioError],
   )
 
+  const initializeAudioForGesture = useCallback(() => {
+    void initializeXRAudio().catch((cause) =>
+      onAudioError?.(
+        note.id,
+        cause instanceof Error ? cause.message : 'Audio could not initialize.',
+      ),
+    )
+  }, [note.id, onAudioError])
+
   const replayVoiceMemo = () => {
+    initializeAudioForGesture()
     const sound = soundRef.current
     if (!sound?.buffer) return
     if (sound.isPlaying) sound.stop()
@@ -200,8 +211,7 @@ export function PluckedButterflyEntity({
     group.add(sound)
     const timer = window.setInterval(
       () => {
-        if (ambientMuted || context.state !== 'running' || sound.isPlaying)
-          return
+        if (ambientMuted || sound.isPlaying) return
         void resumeXRAudio(listener)
           .then(() => {
             if (!ambientMuted && !sound.isPlaying) sound.play()
@@ -230,6 +240,7 @@ export function PluckedButterflyEntity({
     point: THREE.Vector3
   }) => {
     event.stopPropagation()
+    initializeAudioForGesture()
     if (!session) onTogglePluck(note.id, event.point)
   }
   const showCard = note.state === 'PLUCKED' || note.error != null

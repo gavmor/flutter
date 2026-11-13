@@ -9,7 +9,7 @@ npm install
 npm run dev
 ```
 
-Open the HTTPS Vite URL (or localhost). Microphone permission is requested before an XR session starts. The first XR action lazily loads Whisper and the mixedbread 384-dimensional text embedding model in a worker; model download and WebGPU availability determine startup time.
+Open the HTTPS Vite URL (or localhost). Use **Prepare microphone** before XR, then enter an available AR/VR mode with a separate click so the session request retains user activation. Unsupported modes are disabled with a browser/device explanation. Desktop recording and typed notes do not require WebXR. **Load AI** lazily loads Whisper and the mixedbread 384-dimensional text embedding model in a worker; model download and WebGPU availability determine startup time.
 
 The application uses Transformers.js 4.3.2 and UIKit 1.0.78. The worker keeps the WebGPU Whisper and normalized text-embedding pipeline APIs; UIKit panels use native containers with inherited pixel sizing and alpha colors instead of deprecated root wrappers and opacity properties. Patched transitive dependencies are resolved through these maintained releases, without dependency overrides.
 
@@ -19,11 +19,21 @@ Recordings stay in the browser as compressed Blob URLs and worker memory. Audio 
 
 ## XR and browser limits
 
-- Immersive AR/VR requires a WebXR-capable browser and headset; AR room meshes/planes depend on the device's scene-understanding support.
+- Immersive AR/VR requires a WebXR-capable browser and headset; each mode is checked using the XR library's session-support hook. AR room meshes/planes depend on the device's scene-understanding support. [Firefox currently lacks WebXR support](https://developer.mozilla.org/en-US/docs/Web/API/XRSystem#browser_compatibility); this does not imply that desktop WebGPU AI is unavailable on every Firefox platform.
 - Hand tracking requires the `hand-tracking` feature. Controllers use trigger/squeeze hold actions. Desktop pointer clicks are available for inspecting a note, but XR plucking requires a near-hand/controller gesture.
-- Audio playback waits for browser autoplay policy and reports decode/resume failures on the note card. Ambient pentatonic chimes can be muted. The listener provider disconnects its own gain node on cleanup; Three's browser-wide `AudioContext` remains library-owned and is not closed during React StrictMode cleanup or provider unmount.
+- Audio is initialized only by an explicit user action; mounting the scene does not create an `AudioContext`. Playback waits for browser autoplay policy and reports decode/resume failures on the note card. Ambient pentatonic chimes can be muted. The listener provider disconnects its own gain node on cleanup; Three's browser-wide context remains library-owned and is not closed during React StrictMode cleanup or provider unmount.
 - The desktop **Load AI** action initializes the worker independently of microphone permission or XR entry; typed notes become available once it reports ready.
+- WebGPU support depends on browser, operating system, GPU, and driver. API presence is not a guarantee that an adapter or model will initialize; the worker reports actual initialization failures. See [current WebGPU compatibility](https://developer.mozilla.org/en-US/docs/Web/API/GPU#browser_compatibility). There is no fake semantic or XR fallback.
 - No desktop room scan is inferred. Until a real scan arrives, the spatial core reports its actual unscanned/partial state; it does not claim a physical room boundary.
+
+### Firefox console notices
+
+- Browser fingerprinting-protection notices are not permission to disable privacy protection. Anonymous screen-dimension warnings have not been attributed to application code.
+- Audio starts only after an explicit gesture; a missing XR implementation does not prevent supported desktop audio or AI.
+- Status text uses ordinary font characters and available weights. Missing-glyph warnings are separate from XR or GPU support.
+- Desktop and XR input use the XR library's maintained pointer event manager rather than copying every native mouse-event property.
+- A WebAssembly source-map warning concerns developer-tool source lookup, not necessarily execution failure. The layout dependency embeds its WebAssembly module; see [Firefox source-map diagnostics](https://firefox-source-docs.mozilla.org/devtools-user/debugger/source_map_errors/index.html). Do not hide runtime errors or disable debugging to mask the notice.
+
 ## Project layout
 
 - `src/app.tsx` — XR canvas, lifecycle orchestration, desktop controls, capability/status surface.
